@@ -1,0 +1,205 @@
+
+SAS Code:
+
+libname l 'H:\thesis\Data\Nigeria\Analysis\LF\SASing';
+
+/*data l.LF;
+	set lf;
+run;*/
+
+proc contents data=l.lf;
+run;
+
+data lfa;
+	set l.lf;
+
+	if poverty = -9999 then delete;
+	if temp = (-999.9) then delete;
+
+	if FID = 15 then delete; /*this is where missing values for all covs exist*/
+
+run;
+
+proc contents data=lfa;
+run;
+
+data lf1;
+	set lfa;
+
+	 if prev_mf ne 0 then lnLF = log(prev_mf);
+else lnLF = 0;
+
+
+/*Properly coding new categories of land cover*/
+	 /*Artificial surfaces/urban areas - reference, thus when all dummy vars = 0*/
+	if landcov = 14 then landcov14 = 1; 
+		else landcov14 = 0; /*Rainfed croplands*/
+	if landcov = 20 or landcov = 30 then landcov2030 = 1; 
+		else landcov2030 = 0; /*Mosaic cropland/vegetation*/
+	if landcov = 40 or landcov = 60 then landcov4060 = 1; 
+		else landcov4060 = 0; /*Broadleaved evergreen/deciduous*/
+	if landcov = 110 or landcov = 120 or landcov = 130 then landcov110120130 = 1; 
+		else landcov110120130 = 0;  /*Mosaic forest/shrubland/grassland*/
+	if landcov = 170 then landcov170 = 1; 
+		else landcov170 = 0; /*Flooded forest/shrubland*/
+run;
+
+proc contents data = lf1;
+run;
+
+proc univariate data=lf1;
+	var poverty;
+RUN;
+
+proc means data = lf1 max min n mean;
+	var lnLF prev_mf poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170;
+run;
+
+/*Bios 591P Notes*/
+
+/*Looking at variables' distribution*/
+proc univariate data=lf1;
+	var lnLF prev_mf poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170;
+	histogram lnLF prev_mf poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170/normal;
+	probplot lnLF prev_mf poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170;
+run;
+
+/*Is there a linear relationship? ---Turns out: not with original prevalence*/
+
+goptions reset=all htext = 2 ftext = swissb;
+symbol i-none cv=blue v=dot;
+proc gplot data=lf1;
+	plot lnLF*poverty;
+run;
+quit;
+
+proc sgplot data=lf1;
+	scatter x=poverty y1 = lnLF;
+	ellipse x=poverty y = lnLF;
+run;
+
+/*Correlation analysis*/
+
+/*w/correct dummy vars*/
+proc corr data=lf1 PEARSON SPEARMAN;
+	var poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170 ;
+	with lnLF;
+run;
+
+
+/*SLR options: cli clm tol vif collin*/
+proc reg data=lf1;
+	model lnLF = poverty/all;
+run;
+
+/*Multiple Linear Regression*/
+TITLE Full Model;
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty temp annrain aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170/ cli clm tol vif collin;
+RUN;
+/*collin issue with annrain and aridity index, will run without annrain bc higher VIF*/
+
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty temp aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170/clb tol vif collin;
+RUN;
+/*collin issue with temp and intercept, will run without temp*/
+
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170/clb tol vif collin;
+RUN;
+/*Collin issues taken care of*/
+
+
+/*MLR continued - with particular attention to finding least-biased model: will assess confounding by looking for 10% change in poverty beta*/
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170/all;
+RUN;
+/*Landcov categories on whole not significant, moreso than aridity, so will drop and re-evaluate*/
+
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty aridityind/all;
+RUN;
+/*Less than 10% change in poverty beta, thus can safely drop (no confounding by landcov), aridity slighlty non-significant and CI crosses null, will try dropping*/
+
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty/all;
+RUN;
+/*Dropping aridity leads to approximately a 45% change in poverty beta, thus likely a confounder and cannot drop. Will try putting landcov back in for sake of all-possible subsets*/
+
+PROC REG DATA=lf1;
+  	MODEL lnLF = poverty landcov14 landcov2030 landcov4060 landcov110120130 landcov170/all;
+RUN;
+/*Still, dropping aridity leads to more than a 10% change in estimate, thus a confounder and cannot drop-final model is pov and aridity*/
+
+********************************************************************************************************************************
+Stepwise regression
+********************************************************************************************************************************;
+proc phreg data=lf1;
+      model lnLF = poverty aridityind landcov14 landcov2030 landcov4060 landcov110120130 landcov170
+                            / selection=stepwise slentry=0.25
+                              slstay=0.05 details;
+   run;
+
+/*Is there a linear relationship? ---Turns out: no*/
+
+goptions reset=all htext = 2 ftext = swissb;
+symbol i-none cv=blue v=dot;
+proc gplot data=lf1;
+	plot prev_mf*poverty;
+run;
+quit;
+
+proc sgplot data=lf1;
+	scatter x=poverty y = prev_mf;
+	ellipse x=poverty y = prev_mf;
+run;
+
+**Correlation analysis**;
+
+proc corr data=lf1 PEARSON SPEARMAN;
+	var poverty temp annrain aridityind land_14 land_20 land_30 land_40 land_60 land_110 land_120 land_130  land_170 land_210;
+	with prev_mf;
+run;
+
+/*SLR*/
+proc reg data=lf1;
+	model prev_mf = poverty/cli clm;
+run;
+
+/*Multiple Linear Regression*/
+TITLE Full Model;
+PROC REG DATA=lf1;
+  	MODEL prev_mf = poverty temp annrain aridityind land_14 land_20 land_30 land_40 land_60 land_110 land_120 land_130  land_170 land_210/clb;
+RUN;
+
+
+************************************************************************************************************************;
+/*alt datastep
+
+/*Dummy vars for land cover - reference: artificial surfaces/50%urban
+	if landcov = 14 then land_14 = 1; else land_14 = 0;
+	if landcov = 20 then land_20 = 1; else land_20 = 0;
+	if landcov = 30 then land_30 = 1; else land_30 = 0;
+	if landcov = 40 then land_40 = 1; else land_40 = 0;
+	if landcov = 60 then land_60 = 1; else land_60 = 0;
+	if landcov = 110 then land_110 = 1; else land_110 = 0;
+	if landcov = 120 then land_120 = 1; else land_120 = 0;
+	if landcov = 130 then land_130 = 1; else land_130 = 0;
+	if landcov = 170 then land_170 = 1; else land_170 = 0;
+	if landcov = 210 then land_210 = 1; else land_210 = 0;*/
+
+	/*if landcov = 190 then landcov1 = 0; /*Artificial surfaces/urban areas*/
+	/*if landcov = 14 then landcov1 = 1; /*Rainfed croplands*/
+	/*if landcov = 20 or landcov = 30 then landcov1 = 2; /*Mosaic cropland/vegetation*/
+	/*if landcov = 40 or landcov = 60 then landcov1 = 3; /*Broadleaved evergreen/deciduous*/
+	/*if landcov = 110 or landcov = 120 or landcov = 130 then landcov1 = 4; /*Mosaic forest/shrubland/grassland*/
+	/*if landcov = 170 then landcov1 = 5; /*Flooded forest/shrubland*/
+**************************************************************************************************************************;
+
+/*proc print data = lf1;
+	where land_30 = 1;
+run;
+
+proc freq data = lfa;
+	tables landcov;
+run;*/
