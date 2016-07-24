@@ -1,0 +1,13 @@
+<PAMDataset>
+  <Metadata>
+    <MDI key="Authors">Sophie Bontemps &lt;sophie.bontemps@uclouvain.be&gt;,Eric Van Bogaert &lt;eric.vanbogaert@uclouvain.be&gt;,Pierre Defourny &lt;pierre.defourny@uclouvain.be&gt;</MDI>
+    <MDI key="Copyright">Copyright ©UCL Geomatics, BELGIUM 1999-2010</MDI>
+    <MDI key="Generate by">gdal_mean</MDI>
+    <MDI key="process begin time">2010-12-23T09:49:37</MDI>
+    <MDI key="process files">CL5_GLOBCOVER-L5_CLASSIF_2009_V2.3.20101220.tif</MDI>
+    <MDI key="process finish time">2010-12-23T09:57:38</MDI>
+  </Metadata>
+  <Metadata domain="Esri">
+    <MDI key="PyramidResamplingType">NEAREST</MDI>
+  </Metadata>
+</PAMDataset>
